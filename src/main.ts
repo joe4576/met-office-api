@@ -3,13 +3,13 @@ import fetch from "node-fetch";
 import {
   Location,
   ResponseData,
-  LatLong,
   AllLatLongs,
   Observation,
   AllFilteredData,
   DV,
 } from "./types/types";
 import dotenv from "dotenv";
+import observableIds from "./obsIds.js";
 // TODO get cors working
 // const cors = require("cors")
 
@@ -106,17 +106,24 @@ const getFilteredData = async (
       });
   };
 
-  return result
-    ? ({
-        data: result?.SiteRep.DV.Location.map((location) => {
-          return {
-            lat: location.lat,
-            long: location.lon,
-            observations: getObservations(location),
-          };
-        }),
-      } as AllFilteredData)
-    : null;
+  if (result) {
+    const locations =
+      dataType === DataType.FORECAST
+        ? result.SiteRep.DV.Location.filter((l) => observableIds.includes(l.i))
+        : result.SiteRep.DV.Location;
+
+    return {
+      data: locations.map((location) => {
+        return {
+          lat: location.lat,
+          long: location.lon,
+          observations: getObservations(location),
+        };
+      }),
+    } as AllFilteredData;
+  } else {
+    return null;
+  }
 };
 
 app.get("/", async (req, res) => {
