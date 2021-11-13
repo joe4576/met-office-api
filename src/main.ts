@@ -1,6 +1,14 @@
 import express from "express";
 import fetch from "node-fetch";
-import { ResponseData } from "./types/types";
+import {
+  Location,
+  ResponseData,
+  LatLong,
+  AllLatLongs,
+  Observation,
+  ObservableData,
+  AllObversableData,
+} from "./types/types";
 import dotenv from "dotenv";
 // TODO get cors working
 // const cors = require("cors")
@@ -10,43 +18,13 @@ const port = 8080;
 
 dotenv.config();
 
-/**
- * SiteRep
- *  Wx
- *    param
- *      H - screen relative humidity
- *      T - temperature
- *  DV
- *    dateDate: instant
- *    type: "Forecase"
- *    "Location"
- *      i: id of country
- *      lat
- *      long
- *      name
- *      country
- *      continent
- *      elevation
- *      Period
- *        type
- *        value: day in format 2021-11-07Z
- *        Rep (ranges from 5 to 8 - 8 being every 3 hours)12.
- *          array of: F, F, G, H, Pp, S, T, V, W, U, $
- */
-
-interface LatLong {
-  name: string;
-  lat: string;
-  long: string;
-}
-interface AllLatLongs {
-  latLongArray: LatLong[];
-}
-
-const getData = async (): Promise<ResponseData | null> => {
+const getData = async (
+  forecast: boolean = false
+): Promise<ResponseData | null> => {
   console.log("getting data... :)");
-  const url = `http://datapoint.metoffice.gov.uk/public/data/val/wxobs/all/json/all?res=hourly&key=${process.env.MET_OFFICE_KEY}`;
-  const request = await fetch(url);
+  const obsUrl = `http://datapoint.metoffice.gov.uk/public/data/val/wxobs/all/json/all?res=hourly&key=${process.env.MET_OFFICE_KEY}`;
+  const fcsUrl = `http://datapoint.metoffice.gov.uk/public/data/val/wxfcs/all/json/all?res=3hourly&key=${process.env.MET_OFFICE_KEY}`;
+  const request = await fetch(forecast ? fcsUrl : obsUrl);
   const result = (await request.json()) as ResponseData;
   return result || null;
 };
@@ -74,6 +52,33 @@ const getLocationById = async (id: string) => {
     : "Location not found";
 };
 
+const getObservableData = async (): Promise<AllObversableData | null> => {
+  const result = await getData(true);
+
+  const getObservations = (location: Location): Observation[] => {
+    return location.Period.map((p) => p.Rep)
+      .flat()
+      .map((r) => {
+        return {
+          temp: r.T ?? "",
+          humidity: r.H ?? "",
+        };
+      });
+  };
+
+  return result
+    ? ({
+        data: result?.SiteRep.DV.Location.map((location) => {
+          return {
+            lat: location.lat,
+            long: location.lon,
+            observations: getObservations(location),
+          };
+        }),
+      } as AllObversableData)
+    : null;
+};
+
 app.get("/", async (req, res) => {
   res.send(await getAllDataExclusingWx());
 });
@@ -84,6 +89,11 @@ app.get("/latlongs", async (req, res) => {
 
 app.get("/location/:id", async (req, res) => {
   res.send(await getLocationById(req.params.id));
+});
+
+app.get("/obs", async (req, res) => {
+  const payload = await getObservableData();
+  res.send(payload || null);
 });
 
 app.listen(port, () => {

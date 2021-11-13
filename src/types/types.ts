@@ -10,29 +10,24 @@ export interface Wx {
 }
 
 // DV section
-
 export interface Value {
-  D: string;
-  F: string;
-  G: string;
-  H: string;
-  Pp: string;
-  S: string;
-  T: string;
-  V: string;
-  W: string;
-  U: string;
-  $: string;
-}
-
-export interface Rep {
-  Rep: Value[];
+  D: string | null;
+  F: string | null;
+  G: string | null;
+  H: string | null;
+  Pp: string | null;
+  S: string | null;
+  T: string | null;
+  V: string | null;
+  W: string | null;
+  U: string | null;
+  $: string | null;
 }
 
 export interface Period {
   type: string;
   value: string;
-  Rep: Rep[];
+  Rep: Value[];
 }
 
 export interface Location {
@@ -59,4 +54,29 @@ export interface SiteRep {
 
 export interface ResponseData {
   SiteRep: SiteRep;
+}
+
+// Interfaces for API calls
+export interface LatLong {
+  name: string;
+  lat: string;
+  long: string;
+}
+export interface AllLatLongs {
+  latLongArray: LatLong[];
+}
+
+export interface Observation {
+  temp: string;
+  humidity: string;
+}
+
+export interface ObservableData {
+  lat: string;
+  long: string;
+  observations: Observation[];
+}
+
+export interface AllObversableData {
+  data: ObservableData[];
 }
