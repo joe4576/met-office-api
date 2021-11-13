@@ -57,6 +57,6 @@ export interface SiteRep {
   DV: DV;
 }
 
-export interface MainRequest {
+export interface ResponseData {
   SiteRep: SiteRep;
 }

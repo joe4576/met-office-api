@@ -1,6 +1,6 @@
 import express from "express"
 import fetch from "node-fetch";
-import { MainRequest } from "./types/types";
+import { ResponseData } from "./types/types";
 import dotenv from "dotenv";
 // TODO get cors working
 // const cors = require("cors")
@@ -34,23 +34,54 @@ dotenv.config();
  *          array of: F, F, G, H, Pp, S, T, V, W, U, $
  */
 
-const getData = async () => {
+interface LatLong {
+  name: string;
+  lat: string;
+  long: string;
+}
+interface AllLatLongs {
+  latLongArray: LatLong[];
+}
+
+const getData = async (): Promise<ResponseData | null> => {
   console.log("getting data... :)");
   const url = `http://datapoint.metoffice.gov.uk/public/data/val/wxobs/all/json/all?res=hourly&key=${process.env.MET_OFFICE_KEY}`
   const request = await fetch(url);
-  const result = await request.json();
+  const result = await request.json() as ResponseData;
+  return result || null;
+}
 
-  if(result) {
-    let combined: MainRequest = Object.assign({}, result as MainRequest);
-    // get list of all obversable location names
-    return combined.SiteRep.DV.Location.map((l) => l.name);
-  } else {
-    return "Error";
-  }
+const getAllDataExclusingWx = async () => {
+  const result = await getData();
+  return result ? result.SiteRep.DV : null;
+}
+
+const getAllLatLongs = async () => {
+  const result = await getData();
+  return result 
+    ? {latLongArray: result.SiteRep.DV.Location.map((l) => {
+      return {name: l.name, lat: l.lat, long: l.lon} as LatLong
+    })} as AllLatLongs
+    : null
+}
+
+const getLocationById = async (id: string) => {
+  const result = await getData();
+  return result 
+    ? result.SiteRep.DV.Location.find((l) => l.i === id) ?? "Location not found" 
+    : "Location not found"
 }
 
 app.get('/', async (req, res) => {
-  res.send(await getData());
+  res.send(await getAllDataExclusingWx());
+})
+
+app.get("/latlongs", async (req, res) => {
+  res.send(await getAllLatLongs());
+})
+
+app.get("/location/:id", async (req, res) => {
+res.send(await getLocationById(req.params.id));
 })
 
 app.listen(port, () => {
