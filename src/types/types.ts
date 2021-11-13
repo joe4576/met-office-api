@@ -71,12 +71,12 @@ export interface Observation {
   humidity: string;
 }
 
-export interface ObservableData {
+export interface FilteredData {
   lat: string;
   long: string;
   observations: Observation[];
 }
 
-export interface AllObversableData {
-  data: ObservableData[];
+export interface AllFilteredData {
+  data: FilteredData[];
 }

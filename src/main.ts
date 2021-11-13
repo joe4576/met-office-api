@@ -6,8 +6,8 @@ import {
   LatLong,
   AllLatLongs,
   Observation,
-  ObservableData,
-  AllObversableData,
+  AllFilteredData,
+  DV,
 } from "./types/types";
 import dotenv from "dotenv";
 // TODO get cors working
@@ -18,42 +18,82 @@ const port = 8080;
 
 dotenv.config();
 
+enum DataType {
+  FORECAST,
+  OBSERVATION,
+}
+
+/**
+ * Fetch data from Met Office API
+ * @param dataType Which type of data to get. Defaults to observation
+ * @returns JSON object from API response
+ */
 const getData = async (
-  forecast: boolean = false
+  dataType: DataType = DataType.OBSERVATION
 ): Promise<ResponseData | null> => {
   console.log("getting data... :)");
-  const obsUrl = `http://datapoint.metoffice.gov.uk/public/data/val/wxobs/all/json/all?res=hourly&key=${process.env.MET_OFFICE_KEY}`;
-  const fcsUrl = `http://datapoint.metoffice.gov.uk/public/data/val/wxfcs/all/json/all?res=3hourly&key=${process.env.MET_OFFICE_KEY}`;
-  const request = await fetch(forecast ? fcsUrl : obsUrl);
+
+  let requestUrl = "";
+
+  switch (dataType) {
+    case DataType.FORECAST:
+      requestUrl = `http://datapoint.metoffice.gov.uk/public/data/val/wxfcs/all/json/all?res=3hourly&key=${process.env.MET_OFFICE_KEY}`;
+      break;
+    case DataType.OBSERVATION:
+      requestUrl = `http://datapoint.metoffice.gov.uk/public/data/val/wxobs/all/json/all?res=hourly&key=${process.env.MET_OFFICE_KEY}`;
+      break;
+  }
+
+  const request = await fetch(requestUrl);
   const result = (await request.json()) as ResponseData;
   return result || null;
 };
 
-const getAllDataExclusingWx = async () => {
+/**
+ * Get all data from API, excluding 'Wx'
+ * @returns All JSON data excluding 'Wx' property
+ */
+const getAllDataExcludingWx = async (): Promise<DV | null> => {
   const result = await getData();
   return result ? result.SiteRep.DV : null;
 };
 
-const getAllLatLongs = async () => {
+/**
+ * Get all Lat and Long values from each observation site
+ * @returns Object containing each observation name, lat and long
+ */
+const getAllLatLongs = async (): Promise<AllLatLongs | null> => {
   const result = await getData();
   return result
     ? ({
         latLongArray: result.SiteRep.DV.Location.map((l) => {
-          return { name: l.name, lat: l.lat, long: l.lon } as LatLong;
+          return { name: l.name, lat: l.lat, long: l.lon };
         }),
       } as AllLatLongs)
     : null;
 };
 
-const getLocationById = async (id: string) => {
+/**
+ * Get all information stored on a location
+ * @param id Observation/location site ID
+ * @returns Whole location object of a specified site
+ */
+const getLocationById = async (id: string): Promise<Location | null> => {
   const result = await getData();
   return result
-    ? result.SiteRep.DV.Location.find((l) => l.i === id) ?? "Location not found"
-    : "Location not found";
+    ? result.SiteRep.DV.Location.find((l) => l.i === id) ?? null
+    : null;
 };
 
-const getObservableData = async (): Promise<AllObversableData | null> => {
-  const result = await getData(true);
+/**
+ * Get filtered data from either data type.
+ * @param dataType Which type of data to get. Defaults to observation
+ * @returns Filtered data from each location
+ */
+const getFilteredData = async (
+  dataType: DataType = DataType.OBSERVATION
+): Promise<AllFilteredData | null> => {
+  const result = await getData(dataType);
 
   const getObservations = (location: Location): Observation[] => {
     return location.Period.map((p) => p.Rep)
@@ -75,12 +115,12 @@ const getObservableData = async (): Promise<AllObversableData | null> => {
             observations: getObservations(location),
           };
         }),
-      } as AllObversableData)
+      } as AllFilteredData)
     : null;
 };
 
 app.get("/", async (req, res) => {
-  res.send(await getAllDataExclusingWx());
+  res.send(await getAllDataExcludingWx());
 });
 
 app.get("/latlongs", async (req, res) => {
@@ -92,7 +132,12 @@ app.get("/location/:id", async (req, res) => {
 });
 
 app.get("/obs", async (req, res) => {
-  const payload = await getObservableData();
+  const payload = await getFilteredData();
+  res.send(payload || null);
+});
+
+app.get("/forecast", async (req, res) => {
+  const payload = await getFilteredData(DataType.FORECAST);
   res.send(payload || null);
 });
 
