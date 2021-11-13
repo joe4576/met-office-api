@@ -10,6 +10,7 @@ import {
 } from "./types/types";
 import dotenv from "dotenv";
 import observableIds from "./obsIds.js";
+import store from "./state/dataStore.js";
 
 const app = express();
 const port = 8080;
@@ -20,6 +21,13 @@ enum DataType {
   FORECAST,
   OBSERVATION,
 }
+
+let counter = 0;
+setInterval(async () => {
+  store.addToObservedStore(counter);
+  counter++;
+  console.log(store.getObservedStore());
+}, 1000);
 
 /**
  * Fetch data from Met Office API
