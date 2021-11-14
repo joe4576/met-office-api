@@ -24,9 +24,9 @@ enum DataType {
 /**
  * Fetch data from Met Office API
  * @param dataType Which type of data to get. Defaults to observation
- * @returns JSON object from API response
+ * @returns JSON object from API response, or null if there are errors
  */
-const getData = async (
+const getDataFromApi = async (
   dataType: DataType = DataType.OBSERVATION
 ): Promise<ResponseData | null> => {
   console.log("getting data... :)");
@@ -42,17 +42,26 @@ const getData = async (
       break;
   }
 
-  const request = await fetch(requestUrl);
-  const result = (await request.json()) as ResponseData;
-  return result || null;
+  let result: ResponseData | null = null;
+
+  try {
+    const request = await fetch(requestUrl);
+    result = (await request.json()) as ResponseData;
+  } catch (e) {
+    console.log(`API Error: ${e}`);
+  }
+
+  return result;
 };
 
 /**
  * Get all data from API, excluding 'Wx'
  * @returns All JSON data excluding 'Wx' property
  */
-const getAllDataExcludingWx = async (): Promise<DV | null> => {
-  const result = await getData();
+const getAllDataExcludingWx = async (
+  dataType: DataType = DataType.FORECAST
+): Promise<DV | null> => {
+  const result = await getDataFromApi(dataType);
   return result ? result.SiteRep.DV : null;
 };
 
@@ -61,7 +70,7 @@ const getAllDataExcludingWx = async (): Promise<DV | null> => {
  * @returns Object containing each observation name, lat and long
  */
 const getAllLatLongs = async (): Promise<AllLatLongs | null> => {
-  const result = await getData();
+  const result = await getDataFromApi();
   return result
     ? ({
         latLongs: result.SiteRep.DV.Location.map((l) => {
@@ -77,7 +86,7 @@ const getAllLatLongs = async (): Promise<AllLatLongs | null> => {
  * @returns Whole location object of a specified site
  */
 const getLocationById = async (id: string): Promise<Location | null> => {
-  const result = await getData();
+  const result = await getDataFromApi();
   return result
     ? result.SiteRep.DV.Location.find((l) => l.i === id) ?? null
     : null;
@@ -91,7 +100,7 @@ const getLocationById = async (id: string): Promise<Location | null> => {
 const getFilteredData = async (
   dataType: DataType = DataType.FORECAST
 ): Promise<AllFilteredData | null> => {
-  const result = await getData(dataType);
+  const result = await getDataFromApi(dataType);
 
   const getObservations = (location: Location): Observation[] => {
     return location.Period.map((p) => p.Rep)
@@ -129,25 +138,29 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get("/", async (req, res) => {
-  res.send(await getAllDataExcludingWx());
+app.get("/all/forecast", async (req, res) => {
+  const payload = await getAllDataExcludingWx();
+  payload ? res.send(payload) : res.sendStatus(400);
+});
+
+app.get("/all/obs", async (req, res) => {
+  const payload = await getAllDataExcludingWx(DataType.OBSERVATION);
+  payload ? res.send(payload) : res.sendStatus(400);
 });
 
 app.get("/latlongs", async (req, res) => {
-  res.send(await getAllLatLongs());
+  const payload = await getAllLatLongs();
+  payload ? res.send(payload) : res.sendStatus(400);
 });
 
 app.get("/location/:id", async (req, res) => {
-  res.send(await getLocationById(req.params.id));
-});
-
-app.get("/obs", async (req, res) => {
-  const payload = await getFilteredData(DataType.OBSERVATION);
-  res.send(payload || null);
+  const payload = await getLocationById(req.params.id);
+  payload ? res.send(payload) : res.sendStatus(400);
 });
 
 app.get("/forecast", (req, res) => {
-  res.send(store.getForecastStore());
+  const payload = store.getForecastStore();
+  payload ? res.send(payload) : res.sendStatus(400);
 });
 
 app.listen(port, () => {
@@ -156,8 +169,10 @@ app.listen(port, () => {
 
 // Immediately populate forecast store and repeat every 10 mins
 (async function populateForcastStore() {
-  const forecastData = await getFilteredData()!;
-  store.addToForecastStore(forecastData!);
-  console.log("store data updated");
-  setTimeout(populateForcastStore, 600000);
+  const forecastData = await getFilteredData();
+  if (forecastData) {
+    store.addToForecastStore(forecastData);
+    console.log("store data updated");
+  }
+  setTimeout(populateForcastStore, 60000);
 })();

@@ -3,8 +3,8 @@ import { AllFilteredData } from "../types/types";
 class DataStore {
   private forecastStore: AllFilteredData[] = [];
 
-  public getForecastStore(): AllFilteredData[] {
-    return this.forecastStore;
+  public getForecastStore(): AllFilteredData[] | null {
+    return this.forecastStore.length ? this.forecastStore : null;
   }
 
   public addToForecastStore(data: AllFilteredData): void {
