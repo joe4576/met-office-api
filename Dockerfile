@@ -11,4 +11,4 @@ COPY . .
 
 EXPOSE 8080
 
-CMD [ "node", "dist/main.js" ]
+CMD [ "NODE_ENV=production node", "dist/main.js" ]
