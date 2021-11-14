@@ -174,5 +174,5 @@ app.listen(port, () => {
     store.addToForecastStore(forecastData);
     console.log("store data updated");
   }
-  setTimeout(populateForcastStore, 60000);
+  setTimeout(populateForcastStore, 600000);
 })();
