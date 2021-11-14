@@ -9,7 +9,6 @@ import {
   DV,
 } from "./types/types";
 import dotenv from "dotenv";
-import observableIds from "./obsIds.js";
 
 const app = express();
 const port = 8080;
@@ -98,24 +97,19 @@ const getFilteredData = async (
       .flat()
       .map((r) => {
         return {
-          temp: r.T ?? "",
-          humidity: r.H ?? "",
+          t: r.T ?? "",
+          h: r.H ?? "",
         };
       });
   };
 
   if (result) {
-    const locations =
-      dataType === DataType.FORECAST
-        ? result.SiteRep.DV.Location.filter((l) => observableIds.includes(l.i))
-        : result.SiteRep.DV.Location;
-
     return {
-      data: locations.map((location) => {
+      data: result.SiteRep.DV.Location.map((location) => {
         return {
-          lat: location.lat,
-          long: location.lon,
-          observations: getObservations(location),
+          lt: location.lat,
+          lg: location.lon,
+          o: getObservations(location),
         };
       }),
     } as AllFilteredData;
