@@ -2,10 +2,11 @@
   "name": "blight-api",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/main.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon dist/main.js"
+    "dev": "nodemon dist/main.js",
+    "start": "node dist/main.js"
   },
   "keywords": [],
   "author": "",
