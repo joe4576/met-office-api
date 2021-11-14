@@ -67,14 +67,14 @@ export interface AllLatLongs {
 }
 
 export interface Observation {
-  temp: string;
-  humidity: string;
+  t: string;
+  h: string;
 }
 
 export interface FilteredData {
-  lat: string;
-  long: string;
-  observations: Observation[];
+  lt: string;
+  lg: string;
+  o: Observation[];
 }
 
 export interface AllFilteredData {
