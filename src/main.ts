@@ -12,7 +12,7 @@ import dotenv from "dotenv";
 import store from "./state/dataStore.js";
 
 const app = express();
-const port = 8080;
+const port = process.env.PORT || 8080;
 
 dotenv.config();
 
