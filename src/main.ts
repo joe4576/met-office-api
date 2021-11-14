@@ -163,7 +163,7 @@ app.get("/forecast", (req, res) => {
   payload ? res.send(payload) : res.sendStatus(400);
 });
 
-app.listen(app.settings.env === "development" ? port : "$PORT", () => {
+app.listen(port, () => {
   console.log(`Listening at port ${port}`);
 });
 

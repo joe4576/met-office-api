@@ -5,10 +5,10 @@ WORKDIR /usr/src/app
 
 COPY package*.json ./
 
-RUN npm ci --only-production
+RUN npm ci
 
 COPY . .
 
 EXPOSE 8080
 
-CMD [ "NODE_ENV=production node", "dist/main.js" ]
+CMD [ "node", "dist/main.js" ]
