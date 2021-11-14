@@ -63,7 +63,7 @@ export interface LatLong {
   long: string;
 }
 export interface AllLatLongs {
-  latLongArray: LatLong[];
+  latLongs: LatLong[];
 }
 
 export interface Observation {

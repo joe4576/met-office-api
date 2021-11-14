@@ -21,13 +21,6 @@ enum DataType {
   OBSERVATION,
 }
 
-let counter = 0;
-setInterval(async () => {
-  store.addToObservedStore(counter);
-  counter++;
-  console.log(store.getObservedStore());
-}, 1000);
-
 /**
  * Fetch data from Met Office API
  * @param dataType Which type of data to get. Defaults to observation
@@ -71,7 +64,7 @@ const getAllLatLongs = async (): Promise<AllLatLongs | null> => {
   const result = await getData();
   return result
     ? ({
-        latLongArray: result.SiteRep.DV.Location.map((l) => {
+        latLongs: result.SiteRep.DV.Location.map((l) => {
           return { name: l.name, lat: l.lat, long: l.lon };
         }),
       } as AllLatLongs)
@@ -96,7 +89,7 @@ const getLocationById = async (id: string): Promise<Location | null> => {
  * @returns Filtered data from each location
  */
 const getFilteredData = async (
-  dataType: DataType = DataType.OBSERVATION
+  dataType: DataType = DataType.FORECAST
 ): Promise<AllFilteredData | null> => {
   const result = await getData(dataType);
 
@@ -149,15 +142,22 @@ app.get("/location/:id", async (req, res) => {
 });
 
 app.get("/obs", async (req, res) => {
-  const payload = await getFilteredData();
+  const payload = await getFilteredData(DataType.OBSERVATION);
   res.send(payload || null);
 });
 
-app.get("/forecast", async (req, res) => {
-  const payload = await getFilteredData(DataType.FORECAST);
-  res.send(payload || null);
+app.get("/forecast", (req, res) => {
+  res.send(store.getForecastStore());
 });
 
 app.listen(port, () => {
-  console.log(`Listening at http://localhost:${port}`);
+  console.log(`Listening at port ${port}`);
 });
+
+// Immediately populate forecast store and repeat every 10 mins
+(async function populateForcastStore() {
+  const forecastData = await getFilteredData()!;
+  store.addToForecastStore(forecastData!);
+  console.log("store data updated");
+  setTimeout(populateForcastStore, 600000);
+})();

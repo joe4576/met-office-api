@@ -1,29 +1,13 @@
 import { AllFilteredData } from "../types/types";
 
 class DataStore {
-  // note: get observed and forecast every 3 hours
-  // todo: change any to AllFilteredData
-  private observedStore: any[] = [];
-  private observedStoreSize: number = 8;
+  private forecastStore: AllFilteredData[] = [];
 
-  private forecastStore: any[] = [];
-
-  public getObservedStore(): any[] {
-    return this.observedStore;
-  }
-
-  public getForecastStore(): any[] {
+  public getForecastStore(): AllFilteredData[] {
     return this.forecastStore;
   }
 
-  public addToObservedStore(data: any): void {
-    if (this.observedStore.length === this.observedStoreSize) {
-      this.observedStore.pop();
-    }
-    this.observedStore.unshift(data);
-  }
-
-  public addToForecastStore(data: any): void {
+  public addToForecastStore(data: AllFilteredData): void {
     this.forecastStore.pop();
     this.forecastStore.push(data);
   }
