@@ -5,7 +5,7 @@ WORKDIR /usr/src/app
 
 COPY package*.json ./
 
-RUN npm ci --include=dev
+RUN npm ci --include-dev
 
 COPY . .
 
