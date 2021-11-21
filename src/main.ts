@@ -3,18 +3,40 @@ import fetch from "node-fetch";
 import {
   Location,
   ResponseData,
-  AllLatLongs,
   Observation,
   AllFilteredData,
-  DV,
 } from "./types/types";
 import dotenv from "dotenv";
-import store from "./state/dataStore.js";
 import cors from "cors";
+import {
+  getDatabase,
+  ref,
+  set,
+  child,
+  get,
+  push,
+  update,
+  remove,
+} from "firebase/database";
+import { initializeApp } from "firebase/app";
 
 dotenv.config();
+
+const firebaseConfig = {
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.FIREBAESE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID,
+  databaseURL: process.env.FIREBASE_DATABASE_URL,
+};
+initializeApp(firebaseConfig);
+
 const app = express();
 const port = process.env.PORT || 8080;
+
+const db = getDatabase();
 
 app.use(cors());
 
@@ -29,7 +51,7 @@ enum DataType {
  * @returns JSON object from API response, or null if there are errors
  */
 const getDataFromApi = async (
-  dataType: DataType = DataType.OBSERVATION
+  dataType: DataType = DataType.FORECAST
 ): Promise<ResponseData | null> => {
   console.log("getting data... :)");
 
@@ -54,44 +76,6 @@ const getDataFromApi = async (
   }
 
   return result;
-};
-
-/**
- * Get all data from API, excluding 'Wx'
- * @returns All JSON data excluding 'Wx' property
- */
-const getAllDataExcludingWx = async (
-  dataType: DataType = DataType.FORECAST
-): Promise<DV | null> => {
-  const result = await getDataFromApi(dataType);
-  return result ? result.SiteRep.DV : null;
-};
-
-/**
- * Get all Lat and Long values from each observation site
- * @returns Object containing each observation name, lat and long
- */
-const getAllLatLongs = async (): Promise<AllLatLongs | null> => {
-  const result = await getDataFromApi();
-  return result
-    ? ({
-        latLongs: result.SiteRep.DV.Location.map((l) => {
-          return { name: l.name, lat: l.lat, long: l.lon };
-        }),
-      } as AllLatLongs)
-    : null;
-};
-
-/**
- * Get all information stored on a location
- * @param id Observation/location site ID
- * @returns Whole location object of a specified site
- */
-const getLocationById = async (id: string): Promise<Location | null> => {
-  const result = await getDataFromApi();
-  return result
-    ? result.SiteRep.DV.Location.find((l) => l.i === id) ?? null
-    : null;
 };
 
 /**
@@ -130,39 +114,91 @@ const getFilteredData = async (
   }
 };
 
-app.get("/all/forecast", async (req, res) => {
-  const payload = await getAllDataExcludingWx();
-  payload ? res.send(payload) : res.sendStatus(400);
-});
-
-app.get("/all/obs", async (req, res) => {
-  const payload = await getAllDataExcludingWx(DataType.OBSERVATION);
-  payload ? res.send(payload) : res.sendStatus(400);
-});
-
-app.get("/latlongs", async (req, res) => {
-  const payload = await getAllLatLongs();
-  payload ? res.send(payload) : res.sendStatus(400);
-});
-
-app.get("/location/:id", async (req, res) => {
-  const payload = await getLocationById(req.params.id);
-  payload ? res.send(payload) : res.sendStatus(400);
-});
-
-app.get("/forecast", (req, res) => {
-  const payload = store.getForecastStore();
-  payload ? res.send(payload) : res.sendStatus(400);
-});
-
-app.get("/update", (req, res) => {
+app.use("/write/", (req, res, next) => {
   const secureHeader = req.headers["super-secure-key"];
-
   if (!secureHeader || secureHeader !== process.env.API_KEY) {
     res.sendStatus(403);
   } else if (secureHeader === process.env.API_KEY) {
-    // todo: update db
-    res.send("Update function called");
+    next();
+  }
+});
+
+app.get("/write/forecast", async (req, res) => {
+  const forecastData = await getFilteredData();
+  if (forecastData) {
+    try {
+      await set(ref(db, "forecast"), {
+        data: forecastData,
+      });
+      res.sendStatus(200);
+    } catch {
+      res.statusMessage = "Error writing to database";
+      res.sendStatus(500);
+    }
+  } else {
+    res.statusMessage = "Error fetching data from met office";
+    res.sendStatus(500);
+  }
+});
+
+app.get("/write/historic", async (req, res) => {
+  interface HistoricData {
+    key: string;
+    value: AllFilteredData;
+  }
+  const dbNodeName = "historic";
+  const historicDataSnapshot = await get(child(ref(db), dbNodeName));
+  const allHistoricData = [] as HistoricData[];
+
+  if (historicDataSnapshot.val()) {
+    for (const [key, value] of Object.entries(historicDataSnapshot.val())) {
+      allHistoricData.push({ key: key, value: value as AllFilteredData });
+    }
+
+    if (allHistoricData.length === 3) {
+      const lastKey = allHistoricData[allHistoricData.length - 1].key;
+      await remove(ref(db, `/${dbNodeName}/${lastKey}`));
+    }
+  }
+
+  const forecastData = await getFilteredData();
+
+  const nodeKey = push(child(ref(db), dbNodeName)).key;
+  const updates: any = {};
+  updates["/historic/" + nodeKey] = forecastData;
+
+  await update(ref(db), updates);
+  res.sendStatus(200);
+});
+
+app.get("/forecast", async (req, res) => {
+  const dbRef = ref(db);
+  try {
+    const data = await get(child(dbRef, "forecast/data"));
+    if (data.exists()) {
+      res.send(data.val());
+    } else {
+      res.statusMessage = "No forecast data found";
+      res.sendStatus(404);
+    }
+  } catch {
+    res.statusMessage = "Error when accessing database";
+    res.sendStatus(500);
+  }
+});
+
+app.get("/historic", async (req, res) => {
+  const dbRef = ref(db);
+  try {
+    const data = await get(child(dbRef, "historic"));
+    if (data.exists()) {
+      res.send(data.val());
+    } else {
+      res.statusMessage = "No historic data found";
+      res.sendStatus(404);
+    }
+  } catch {
+    res.send("Error when accessing database");
   }
 });
 
