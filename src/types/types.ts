@@ -78,5 +78,6 @@ export interface FilteredData {
 }
 
 export interface AllFilteredData {
+  time: number;
   data: FilteredData[];
 }

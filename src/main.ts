@@ -109,11 +109,17 @@ const getFilteredData = async (
           o: getObservations(location),
         };
       }),
+      time: Date.now(),
     } as AllFilteredData;
   } else {
     return null;
   }
 };
+
+interface HistoricData {
+  key: string;
+  value: AllFilteredData;
+}
 
 app.use("/write/", (req, res, next) => {
   const secureHeader = req.headers["super-secure-key"];
@@ -143,10 +149,6 @@ app.get("/write/forecast", async (req, res) => {
 });
 
 app.get("/write/historic", async (req, res) => {
-  interface HistoricData {
-    key: string;
-    value: AllFilteredData;
-  }
   const dbNodeName = "historic";
   let historicDataSnapshot = {} as DataSnapshot;
   try {
@@ -163,7 +165,7 @@ app.get("/write/historic", async (req, res) => {
     }
 
     if (allHistoricData.length === 3) {
-      const lastKey = allHistoricData[allHistoricData.length - 1].key;
+      const lastKey = allHistoricData[0].key;
       try {
         await remove(ref(db, `/${dbNodeName}/${lastKey}`));
       } catch {
@@ -178,7 +180,7 @@ app.get("/write/historic", async (req, res) => {
   if (forecastData) {
     const nodeKey = push(child(ref(db), dbNodeName)).key;
     const updates: any = {};
-    updates["/historic/" + nodeKey] = forecastData;
+    updates[`/${dbNodeName}/` + nodeKey] = forecastData;
     try {
       await update(ref(db), updates);
     } catch {
@@ -213,7 +215,15 @@ app.get("/historic", async (req, res) => {
   try {
     const data = await get(child(dbRef, "historic"));
     if (data.exists()) {
-      res.send(data.val());
+      const allHistoricData = [] as HistoricData[];
+      for (const [key, value] of Object.entries(data.val())) {
+        allHistoricData.push({ key: key, value: value as AllFilteredData });
+      }
+
+      // only return first 2 elements as third is not relevant
+      allHistoricData.length === 3
+        ? res.send(allHistoricData.slice(0, allHistoricData.length - 1))
+        : res.send(allHistoricData);
     } else {
       res.statusMessage = "No historic data found";
       res.sendStatus(404);
