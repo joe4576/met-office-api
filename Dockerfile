@@ -1,16 +1,6 @@
 FROM node:16
-
-# Create app directory
 WORKDIR /usr/src/app
-
 COPY package*.json ./
-
-RUN npm ci --include-dev
-
+RUN npm ci
 COPY . .
-
-RUN tsc
-
-EXPOSE 8080
-
-CMD [ "node", "dist/main.js" ]
+CMD [ "npm", "start" ]

@@ -10,11 +10,13 @@ import {
 } from "./types/types";
 import dotenv from "dotenv";
 import store from "./state/dataStore.js";
+import cors from "cors";
 
+dotenv.config();
 const app = express();
 const port = process.env.PORT || 8080;
 
-dotenv.config();
+app.use(cors());
 
 enum DataType {
   FORECAST,
@@ -128,16 +130,6 @@ const getFilteredData = async (
   }
 };
 
-// Enable CORS
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept"
-  );
-  next();
-});
-
 app.get("/all/forecast", async (req, res) => {
   const payload = await getAllDataExcludingWx();
   payload ? res.send(payload) : res.sendStatus(400);
@@ -163,16 +155,17 @@ app.get("/forecast", (req, res) => {
   payload ? res.send(payload) : res.sendStatus(400);
 });
 
+app.get("/update", (req, res) => {
+  const secureHeader = req.headers["super-secure-key"];
+
+  if (!secureHeader || secureHeader !== process.env.API_KEY) {
+    res.sendStatus(403);
+  } else if (secureHeader === process.env.API_KEY) {
+    // todo: update db
+    res.send("Update function called");
+  }
+});
+
 app.listen(port, () => {
   console.log(`Listening at port ${port}`);
 });
-
-// Immediately populate forecast store and repeat every 10 mins
-(async function populateForcastStore() {
-  const forecastData = await getFilteredData();
-  if (forecastData) {
-    store.addToForecastStore(forecastData);
-    console.log("store data updated");
-  }
-  setTimeout(populateForcastStore, 600000);
-})();
