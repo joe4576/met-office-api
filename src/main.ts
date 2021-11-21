@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Response } from "express";
 import fetch from "node-fetch";
 import {
   Location,
@@ -17,6 +17,7 @@ import {
   push,
   update,
   remove,
+  DataSnapshot,
 } from "firebase/database";
 import { initializeApp } from "firebase/app";
 
@@ -147,28 +148,48 @@ app.get("/write/historic", async (req, res) => {
     value: AllFilteredData;
   }
   const dbNodeName = "historic";
-  const historicDataSnapshot = await get(child(ref(db), dbNodeName));
-  const allHistoricData = [] as HistoricData[];
+  let historicDataSnapshot = {} as DataSnapshot;
+  try {
+    historicDataSnapshot = await get(child(ref(db), dbNodeName));
+  } catch {
+    res.statusMessage = "Error when accessing database";
+    res.sendStatus(500);
+  }
 
   if (historicDataSnapshot.val()) {
+    const allHistoricData = [] as HistoricData[];
     for (const [key, value] of Object.entries(historicDataSnapshot.val())) {
       allHistoricData.push({ key: key, value: value as AllFilteredData });
     }
 
     if (allHistoricData.length === 3) {
       const lastKey = allHistoricData[allHistoricData.length - 1].key;
-      await remove(ref(db, `/${dbNodeName}/${lastKey}`));
+      try {
+        await remove(ref(db, `/${dbNodeName}/${lastKey}`));
+      } catch {
+        res.statusMessage = "Error when accessing database";
+        res.sendStatus(500);
+      }
     }
   }
 
   const forecastData = await getFilteredData();
 
-  const nodeKey = push(child(ref(db), dbNodeName)).key;
-  const updates: any = {};
-  updates["/historic/" + nodeKey] = forecastData;
-
-  await update(ref(db), updates);
-  res.sendStatus(200);
+  if (forecastData) {
+    const nodeKey = push(child(ref(db), dbNodeName)).key;
+    const updates: any = {};
+    updates["/historic/" + nodeKey] = forecastData;
+    try {
+      await update(ref(db), updates);
+    } catch {
+      res.statusMessage = "Error when accessing database";
+      res.sendStatus(500);
+    }
+    res.sendStatus(200);
+  } else {
+    res.statusMessage = "Error fetching data from met office";
+    res.sendStatus(500);
+  }
 });
 
 app.get("/forecast", async (req, res) => {
