@@ -168,7 +168,7 @@ app.get("/write/historic", async (req, res) => {
       allHistoricData.push({ key: key, value: value as AllFilteredData });
     }
 
-    if (allHistoricData.length === 4) {
+    if (allHistoricData.length === 3) {
       const lastKey = allHistoricData[0].key;
       try {
         await remove(ref(db, `/${dbNodeName}/${lastKey}`));
@@ -223,15 +223,7 @@ app.get("/historic", async (req, res) => {
   try {
     const data = await get(child(dbRef, "historic"));
     if (data.exists()) {
-      const allHistoricData = [] as HistoricData[];
-      for (const [key, value] of Object.entries(data.val())) {
-        allHistoricData.push({ key: key, value: value as AllFilteredData });
-      }
-
-      // only return first 3 elements as 4th is not historic (24 hours forecast)
-      allHistoricData.length === 4
-        ? res.send(allHistoricData.slice(0, allHistoricData.length - 1))
-        : res.send(allHistoricData);
+      res.send(data);
     } else {
       res.statusMessage = "No historic data found";
       res.sendStatus(404);
