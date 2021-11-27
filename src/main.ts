@@ -20,6 +20,7 @@ import {
   DataSnapshot,
 } from "firebase/database";
 import { initializeApp } from "firebase/app";
+import idsToInclude from "./res/ids.js";
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ const firebaseConfig = {
   appId: process.env.FIREBASE_APP_ID,
   databaseURL: process.env.FIREBASE_DATABASE_URL,
 };
+
 initializeApp(firebaseConfig);
 
 const app = express();
@@ -102,7 +104,9 @@ const getFilteredData = async (
 
   if (result) {
     return {
-      data: result.SiteRep.DV.Location.map((location) => {
+      data: result.SiteRep.DV.Location.filter((location) =>
+        idsToInclude.has(+location.i)
+      ).map((location) => {
         return {
           lt: location.lat,
           lg: location.lon,
@@ -164,7 +168,7 @@ app.get("/write/historic", async (req, res) => {
       allHistoricData.push({ key: key, value: value as AllFilteredData });
     }
 
-    if (allHistoricData.length === 3) {
+    if (allHistoricData.length === 4) {
       const lastKey = allHistoricData[0].key;
       try {
         await remove(ref(db, `/${dbNodeName}/${lastKey}`));
@@ -178,6 +182,11 @@ app.get("/write/historic", async (req, res) => {
   const forecastData = await getFilteredData();
 
   if (forecastData) {
+    // only include the next 24 hours
+    for (let i = 0; i < forecastData.data.length; i++) {
+      forecastData.data[i].o = forecastData.data[i].o.slice(0, 8);
+    }
+
     const nodeKey = push(child(ref(db), dbNodeName)).key;
     const updates: any = {};
     updates[`/${dbNodeName}/` + nodeKey] = forecastData;
@@ -195,9 +204,8 @@ app.get("/write/historic", async (req, res) => {
 });
 
 app.get("/forecast", async (req, res) => {
-  const dbRef = ref(db);
   try {
-    const data = await get(child(dbRef, "forecast/data"));
+    const data = await get(child(ref(db), "forecast/data"));
     if (data.exists()) {
       res.send(data.val());
     } else {
@@ -220,8 +228,8 @@ app.get("/historic", async (req, res) => {
         allHistoricData.push({ key: key, value: value as AllFilteredData });
       }
 
-      // only return first 2 elements as third is not relevant
-      allHistoricData.length === 3
+      // only return first 3 elements as 4th is not historic (24 hours forecast)
+      allHistoricData.length === 4
         ? res.send(allHistoricData.slice(0, allHistoricData.length - 1))
         : res.send(allHistoricData);
     } else {
@@ -229,7 +237,8 @@ app.get("/historic", async (req, res) => {
       res.sendStatus(404);
     }
   } catch {
-    res.send("Error when accessing database");
+    res.statusMessage = "Error when accessing database";
+    res.sendStatus(500);
   }
 });
 
