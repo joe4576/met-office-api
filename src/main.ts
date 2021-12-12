@@ -96,8 +96,8 @@ const getFilteredData = async (
       .flat()
       .map((r) => {
         return {
-          t: r.T ?? "",
-          h: r.H ?? "",
+          t: r.T ? +r.T : null,
+          h: r.H ? +r.H : null,
         };
       });
   };
@@ -108,8 +108,8 @@ const getFilteredData = async (
         idsToInclude.has(+location.i)
       ).map((location) => {
         return {
-          lt: location.lat,
-          lg: location.lon,
+          lt: +location.lat,
+          lg: +location.lon,
           o: getObservations(location),
         };
       }),
@@ -223,7 +223,14 @@ app.get("/historic", async (req, res) => {
   try {
     const data = await get(child(dbRef, "historic"));
     if (data.exists()) {
-      res.send(data);
+      const dataFromDatabase = data.val();
+      const dataToReturn = [] as AllFilteredData[];
+      Object.entries(dataFromDatabase).forEach(([key, value], index) => {
+        if (index !== 0) {
+          dataToReturn.push(value as AllFilteredData);
+        }
+      });
+      res.send(dataToReturn);
     } else {
       res.statusMessage = "No historic data found";
       res.sendStatus(404);

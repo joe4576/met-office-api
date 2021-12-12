@@ -67,13 +67,13 @@ export interface AllLatLongs {
 }
 
 export interface Observation {
-  t: string;
-  h: string;
+  t: number | null;
+  h: number | null;
 }
 
 export interface FilteredData {
-  lt: string;
-  lg: string;
+  lt: number;
+  lg: number;
   o: Observation[];
 }
 
