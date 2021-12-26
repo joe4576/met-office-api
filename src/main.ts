@@ -223,14 +223,34 @@ app.get("/historic", async (req, res) => {
   try {
     const data = await get(child(dbRef, "historic"));
     if (data.exists()) {
-      const dataFromDatabase = data.val();
-      const dataToReturn = [] as AllFilteredData[];
+      interface DataFromDatabase {
+        [key: string]: string | AllFilteredData;
+        data: AllFilteredData;
+      }
+      const dataFromDatabase: DataFromDatabase = data.val();
+
+      /**
+       * "Relevant" data is the past 48 hours worth of predictions given in
+       * descending order. They are returned in the same format as forecast
+       * data, except there will be 16 historical observations from or around
+       * the given time.
+       */
+      const relevantDataFromDatabase = {} as AllFilteredData;
+
       Object.entries(dataFromDatabase).forEach(([key, value], index) => {
-        if (index !== 0) {
-          dataToReturn.push(value as AllFilteredData);
+        if (index === 0 || index === 1) {
+          relevantDataFromDatabase.time = (value as AllFilteredData).time;
+          if (!relevantDataFromDatabase.data) {
+            relevantDataFromDatabase.data = (value as AllFilteredData).data;
+          } else {
+            (value as AllFilteredData).data.forEach((obs, i) => {
+              relevantDataFromDatabase.data[i].o.push(...obs.o);
+            });
+          }
         }
       });
-      res.send(dataToReturn);
+
+      res.send(relevantDataFromDatabase);
     } else {
       res.statusMessage = "No historic data found";
       res.sendStatus(404);
