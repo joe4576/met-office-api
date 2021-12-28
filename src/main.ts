@@ -125,6 +125,9 @@ interface HistoricData {
   value: AllFilteredData;
 }
 
+/**
+ * Middleware to prevent update without an api key header
+ */
 app.use("/write/", (req, res, next) => {
   const secureHeader = req.headers["super-secure-key"];
   if (!secureHeader || secureHeader !== process.env.API_KEY) {
@@ -134,34 +137,43 @@ app.use("/write/", (req, res, next) => {
   }
 });
 
-app.get("/write/forecast", async (req, res) => {
+/**
+ * Update both forecast and historic data in one api call
+ */
+app.use("/write/update", async (req, res) => {
   const forecastData = await getFilteredData();
+
+  // Write forcast
   if (forecastData) {
     try {
       await set(ref(db, "forecast"), {
         data: forecastData,
       });
-      res.sendStatus(200);
     } catch {
       res.statusMessage = "Error writing to database";
       res.sendStatus(500);
+      return;
     }
   } else {
     res.statusMessage = "Error fetching data from met office";
     res.sendStatus(500);
+    return;
   }
-});
 
-app.get("/write/historic", async (req, res) => {
+  // Write historic
   const dbNodeName = "historic";
   let historicDataSnapshot = {} as DataSnapshot;
+
+  // Get data snapshot from db
   try {
     historicDataSnapshot = await get(child(ref(db), dbNodeName));
   } catch {
     res.statusMessage = "Error when accessing database";
     res.sendStatus(500);
+    return;
   }
 
+  // Remove the oldest piece of historic data
   if (historicDataSnapshot.val()) {
     const allHistoricData = [] as HistoricData[];
     for (const [key, value] of Object.entries(historicDataSnapshot.val())) {
@@ -175,12 +187,12 @@ app.get("/write/historic", async (req, res) => {
       } catch {
         res.statusMessage = "Error when accessing database";
         res.sendStatus(500);
+        return;
       }
     }
   }
 
-  const forecastData = await getFilteredData();
-
+  // Write the newest set forecast data to db
   if (forecastData) {
     // only include the next 24 hours
     for (let i = 0; i < forecastData.data.length; i++) {
@@ -195,7 +207,10 @@ app.get("/write/historic", async (req, res) => {
     } catch {
       res.statusMessage = "Error when accessing database";
       res.sendStatus(500);
+      return;
     }
+
+    // Send successful update code
     res.sendStatus(200);
   } else {
     res.statusMessage = "Error fetching data from met office";
@@ -203,6 +218,9 @@ app.get("/write/historic", async (req, res) => {
   }
 });
 
+/**
+ * Get forecast data
+ */
 app.get("/forecast", async (req, res) => {
   try {
     const data = await get(child(ref(db), "forecast/data"));
@@ -218,6 +236,9 @@ app.get("/forecast", async (req, res) => {
   }
 });
 
+/**
+ * Get historic data
+ */
 app.get("/historic", async (req, res) => {
   const dbRef = ref(db);
   try {
