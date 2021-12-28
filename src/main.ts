@@ -218,29 +218,12 @@ app.use("/write/update", async (req, res) => {
   }
 });
 
-/**
- * Get forecast data
- */
-app.get("/forecast", async (req, res) => {
-  try {
-    const data = await get(child(ref(db), "forecast/data"));
-    if (data.exists()) {
-      res.send(data.val());
-    } else {
-      res.statusMessage = "No forecast data found";
-      res.sendStatus(404);
-    }
-  } catch {
-    res.statusMessage = "Error when accessing database";
-    res.sendStatus(500);
-  }
-});
-
-/**
- * Get historic data
- */
-app.get("/historic", async (req, res) => {
+app.use("/historic-and-forecast", async (req, res) => {
   const dbRef = ref(db);
+  let historicData = {} as AllFilteredData;
+  let forecastData = {} as AllFilteredData;
+
+  //! historic data
   try {
     const data = await get(child(dbRef, "historic"));
     if (data.exists()) {
@@ -256,22 +239,20 @@ app.get("/historic", async (req, res) => {
        * data, except there will be 16 historical observations from or around
        * the given time.
        */
-      const relevantDataFromDatabase = {} as AllFilteredData;
+      historicData = {} as AllFilteredData;
 
       Object.entries(dataFromDatabase).forEach(([key, value], index) => {
         if (index === 0 || index === 1) {
-          relevantDataFromDatabase.time = (value as AllFilteredData).time;
-          if (!relevantDataFromDatabase.data) {
-            relevantDataFromDatabase.data = (value as AllFilteredData).data;
+          historicData.time = (value as AllFilteredData).time;
+          if (!historicData.data) {
+            historicData.data = (value as AllFilteredData).data;
           } else {
             (value as AllFilteredData).data.forEach((obs, i) => {
-              relevantDataFromDatabase.data[i].o.push(...obs.o);
+              historicData.data[i].o.push(...obs.o);
             });
           }
         }
       });
-
-      res.send(relevantDataFromDatabase);
     } else {
       res.statusMessage = "No historic data found";
       res.sendStatus(404);
@@ -280,6 +261,27 @@ app.get("/historic", async (req, res) => {
     res.statusMessage = "Error when accessing database";
     res.sendStatus(500);
   }
+
+  //! forecast
+  try {
+    const data = await get(child(dbRef, "forecast/data"));
+    if (data.exists()) {
+      forecastData = data.val();
+    } else {
+      res.statusMessage = "No forecast data found";
+      res.sendStatus(404);
+    }
+  } catch {
+    res.statusMessage = "Error when accessing database";
+    res.sendStatus(500);
+  }
+
+  // combine forecast and historic (oldest to most recent)
+  historicData.data.forEach((location, index) => {
+    location.o.reverse().push(...forecastData.data.map((d) => d.o)[index]);
+  });
+
+  res.send(historicData);
 });
 
 app.listen(port, () => {
