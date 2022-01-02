@@ -281,6 +281,9 @@ app.use("/historic-and-forecast", async (req, res) => {
     location.o.reverse().push(...forecastData.data.map((d) => d.o)[index]);
   });
 
+  // most recent update time
+  historicData.time = forecastData.time;
+
   res.send(historicData);
 });
 
